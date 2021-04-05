@@ -12,27 +12,27 @@ pub enum Response {
     PURGE(PurgeResponse),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct GetResponse {
-    data: Value,
+    pub data: Value,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct SetResponse {
-    status: Value,
+    pub status: Value,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct DelResponse {
-    deleted: Value,
+    pub deleted: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct KeysResponse {
-    keys: Value,
+    pub keys: Vec<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct PurgeResponse {
-    purged: Value,
+    pub purged: bool,
 }
