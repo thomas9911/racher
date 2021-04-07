@@ -6,10 +6,10 @@ use std::path::PathBuf;
 
 use chrono::Utc;
 use dashmap::DashMap;
-use futures::future::{abortable, FutureExt};
 use serde_value::Value;
-use tokio::io::{stdout, AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 use tokio::{fs, io, signal, time};
+use tracing::info;
 
 pub async fn http_server(cfg: RuntimeConfigArc, cache: Db) -> Result<(), Box<dyn Error>> {
     let api = crate::create_api(cache);
@@ -18,11 +18,7 @@ pub async fn http_server(cfg: RuntimeConfigArc, cache: Db) -> Result<(), Box<dyn
         signal::ctrl_c().await.expect("failed to listen for event")
     });
 
-    let mut stdout = stdout();
-    stdout
-        .write_all(format!("Listening on: http://{}\n", addr).as_bytes())
-        .await?;
-    stdout.flush().await?;
+    info!("address: http://{}", addr);
 
     server.await;
 
@@ -53,7 +49,10 @@ pub async fn fs_loop(cfg: RuntimeConfigArc, cache: Db) -> io::Result<()> {
 }
 
 pub async fn fetch_data_dir_filenames(backup_dir: &PathBuf) -> io::Result<Vec<std::ffi::OsString>> {
-    let mut dir_contents = fs::read_dir(backup_dir).await?;
+    let mut dir_contents = match fs::read_dir(backup_dir).await {
+        Err(_) => return Ok(Vec::new()),
+        Ok(x) => x,
+    };
 
     let mut filenames = Vec::new();
 
@@ -93,16 +92,22 @@ pub async fn clean_data_dir(cfg: RuntimeConfigArc) -> io::Result<()> {
 }
 
 pub async fn sync_to_fs(cfg: RuntimeConfigArc, cache: Db) -> Result<(), Box<dyn Error>> {
-    let (fs_loop_future, fs_loop_handle) = abortable(fs_loop(cfg.clone(), cache));
-    let (clean_data_future, clean_handle) = abortable(clean_data_dir(cfg.clone()));
-    let (_, _, fs_loop_poll, clean_data_poll) = tokio::join!(
-        signal::ctrl_c().then(|_| async move { fs_loop_handle.abort() }),
-        signal::ctrl_c().then(|_| async move { clean_handle.abort() }),
-        fs_loop_future,
-        clean_data_future,
-    );
-    fs_loop_poll??;
-    clean_data_poll??;
+    // let (fs_loop_future, fs_loop_handle) = abortable(fs_loop(cfg.clone(), cache));
+    // let (clean_data_future, clean_handle) = abortable(clean_data_dir(cfg.clone()));
+    // let (_, _, fs_loop_poll, clean_data_poll) = tokio::join!(
+    //     signal::ctrl_c().then(|_| async move { fs_loop_handle.abort() }),
+    //     signal::ctrl_c().then(|_| async move { clean_handle.abort() }),
+    //     fs_loop_future,
+    //     clean_data_future,
+    // );
+    // fs_loop_poll??;
+    // clean_data_poll??;
+
+    tokio::select! {
+        Ok(()) = signal::ctrl_c() => {}
+        Ok(()) = fs_loop(cfg.clone(), cache) => {}
+        Ok(()) = clean_data_dir(cfg.clone()) => {}
+    };
 
     Ok(())
 }

@@ -134,12 +134,16 @@ async fn keys() {
 }
 
 #[tokio::test]
-async fn delete() {
+async fn delete_existing() {
     let map = DashMap::new();
     map.insert(String::from("testing"), Value::Bool(true));
     map.insert(String::from("another"), Value::Bool(true));
 
     let cache = Arc::new(map);
+
+    assert!(cache.contains_key("testing"));
+    assert!(cache.contains_key("another"));
+
     let filter = create_api(cache.clone());
 
     let value = warp::test::request()
@@ -158,12 +162,44 @@ async fn delete() {
 }
 
 #[tokio::test]
+async fn delete_not_existing() {
+    let map = DashMap::new();
+    map.insert(String::from("testing"), Value::Bool(true));
+    map.insert(String::from("another"), Value::Bool(true));
+
+    let cache = Arc::new(map);
+
+    assert!(cache.contains_key("testing"));
+    assert!(cache.contains_key("another"));
+
+    let filter = create_api(cache.clone());
+
+    let value = warp::test::request()
+        .method("POST")
+        .path("/del/something")
+        .reply(&filter)
+        .await
+        .into_body();
+
+    let value: responses::DelResponse = serde_json::from_slice(&value).unwrap();
+    let expected = responses::DelResponse { deleted: false };
+    assert_eq!(expected, value);
+
+    assert!(cache.contains_key("testing"));
+    assert!(cache.contains_key("another"));
+}
+
+#[tokio::test]
 async fn purge() {
     let map = DashMap::new();
     map.insert(String::from("testing"), Value::Bool(true));
     map.insert(String::from("another"), Value::Bool(true));
 
     let cache = Arc::new(map);
+
+    assert!(cache.contains_key("testing"));
+    assert!(cache.contains_key("another"));
+
     let filter = create_api(cache.clone());
 
     let value = warp::test::request()

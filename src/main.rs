@@ -2,7 +2,7 @@
 
 use libracher;
 use libracher::cli;
-use libracher::config::RuntimeConfig;
+use libracher::config::{RuntimeConfig, RuntimeConfigArc};
 
 use std::error::Error;
 use std::net::SocketAddr;
@@ -10,7 +10,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use structopt::StructOpt;
-use tokio::io::{stdout, AsyncWriteExt};
+use tracing::{debug, error};
+use tracing_subscriber::filter::LevelFilter;
 
 #[derive(Debug, Clone)]
 /// wrapper around PathBuf that defaults to the temp_dir()
@@ -65,6 +66,23 @@ struct Args {
     /// removes all the backup files and exists
     #[structopt(long)]
     pub backup_remove: bool,
+    /// turn off all normal messages
+    #[structopt(short, long)]
+    pub quiet: bool,
+    /// turn off all messages
+    #[structopt(short = "Q", long)]
+    pub ultra_quiet: bool,
+    /// turn on debug messages
+    #[structopt(short, long)]
+    pub verbose: bool,
+    /// turn on all messages
+    #[structopt(long)]
+    pub trace: bool,
+    /// set the log level
+    #[structopt(long, env = "RASHER_LOGGER_LEVEL", possible_values = &["ERROR", "WARN", "INFO", "DEBUG", "TRACE", "OFF"])]
+    pub logger_level: Option<LevelFilter>,
+    #[structopt(short, long, env = "RASHER_OUTPUT_FORMAT", default_value="compact", possible_values = &["compact", "json", "pretty"])]
+    pub output: String,
 }
 
 impl Args {
@@ -78,16 +96,31 @@ impl Args {
             ..Default::default()
         }
     }
+
+    pub fn set_logger(&self) {
+        let level = if self.ultra_quiet {
+            LevelFilter::OFF
+        } else if self.quiet {
+            LevelFilter::ERROR
+        } else if self.verbose {
+            LevelFilter::DEBUG
+        } else if self.trace {
+            LevelFilter::TRACE
+        } else {
+            self.logger_level.unwrap_or(LevelFilter::INFO)
+        };
+
+        let builder = tracing_subscriber::fmt().with_max_level(level);
+        match self.output.as_ref() {
+            "json" => builder.json().init(),
+            "compact" => builder.compact().init(),
+            "pretty" => builder.pretty().init(),
+            _ => unreachable!(),
+        };
+    }
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    let args = match Args::from_args_safe() {
-        Ok(x) => x,
-        Err(e) => return Ok(println!("{}", e)),
-    };
-
-    let config = args.as_runtime_config().to_arc();
+async fn inner_loop(args: &Args, config: RuntimeConfigArc) -> Result<(), Box<dyn Error>> {
     if args.backup_remove {
         return Ok(cli::remove_backups(config.clone()).await?);
     };
@@ -101,19 +134,35 @@ async fn main() -> Result<(), Box<dyn Error>> {
     );
 
     http?;
-    let mut stdout = stdout();
+    fs_handler?;
 
-    match fs_handler {
-        Ok(_) => (),
-        Err(e) => stdout.write_all(format!("{}\n", e).as_bytes()).await?,
+    Ok(())
+}
+
+async fn main_loop(args: &Args, config: RuntimeConfigArc) -> Result<(), Box<dyn Error>> {
+    loop {
+        match inner_loop(args, config.clone()).await {
+            Ok(_) => break,
+            Err(e) => error!(%e),
+        };
+    }
+
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    let args = match Args::from_args_safe() {
+        Ok(x) => x,
+        Err(e) => return Ok(println!("{}", e)),
     };
 
-    // tokio::select!{
-    //     _ = http_server(args, arc_cache.clone()) => {},
-    //     _ = sync_to_fs(arc_cache.clone()) => {},
-    // };
+    args.set_logger();
 
-    stdout.write_all(b"Bye").await?;
+    let config = args.as_runtime_config().to_arc();
+    main_loop(&args, config).await?;
+
+    debug!("Exiting");
 
     Ok(())
 }
