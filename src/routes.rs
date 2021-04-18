@@ -1,16 +1,21 @@
+use crate::config::RuntimeConfigArc;
 use crate::Db;
-
-use std::collections::HashSet;
-use std::iter::FromIterator;
 
 use serde_json::json;
 use serde_value::Value;
+use std::collections::HashSet;
+use std::convert::Infallible;
+use std::iter::FromIterator;
+use tokio::sync::broadcast;
 use warp::filters::BoxedFilter;
 use warp::{Filter, Reply};
 
+pub mod internal;
+pub mod utils;
+
 use crate::MAX_FILE_SIZE;
 
-fn ok_reponse() -> warp::reply::Json {
+pub(crate) fn ok_reponse() -> warp::reply::Json {
     warp::reply::json(&json!({"status": "ok"}))
 }
 
@@ -20,6 +25,19 @@ fn data_response(value: &Value) -> warp::reply::Json {
 
 fn delete_response(value: bool) -> warp::reply::Json {
     warp::reply::json(&json!({ "deleted": value }))
+}
+
+async fn inner_setter(
+    name: String,
+    simple_map: Value,
+    cache: Db,
+    tx: broadcast::Sender<(String, Value)>,
+) -> Result<impl warp::Reply, Infallible> {
+    println!("{}", name);
+    cache.insert(name.clone(), simple_map.clone());
+    // ignore the error, this will only return if no-one is listening.
+    tx.send((name, simple_map)).ok();
+    Ok::<_, Infallible>(ok_reponse())
 }
 
 pub fn getter(cache: Db) -> BoxedFilter<(impl Reply,)> {
@@ -40,14 +58,13 @@ pub fn deleter(cache: Db) -> BoxedFilter<(impl Reply,)> {
         .boxed()
 }
 
-pub fn setter(cache: Db) -> BoxedFilter<(impl Reply,)> {
+pub fn setter(cache: Db, tx: broadcast::Sender<(String, Value)>) -> BoxedFilter<(impl Reply,)> {
     warp::path!("set" / String)
         .and(warp::body::content_length_limit(MAX_FILE_SIZE))
         .and(warp::body::json())
-        .map(move |name, simple_map: Value| {
-            cache.insert(name, simple_map);
-            ok_reponse()
-        })
+        .and(utils::move_object(cache))
+        .and(utils::move_object(tx))
+        .and_then(inner_setter)
         .boxed()
 }
 
@@ -73,5 +90,15 @@ pub fn keys(cache: Db) -> BoxedFilter<(impl Reply,)> {
                 HashSet::from_iter(cache.iter().map(|item| item.key().clone()));
             warp::reply::json(&json!({ "keys": keys }))
         })
+        .boxed()
+}
+
+pub fn internal(cache: Db, cfg: RuntimeConfigArc) -> BoxedFilter<(impl Reply,)> {
+    warp::path("_internal")
+        .and(
+            internal::join(cfg.clone())
+                .or(internal::sync(cache.clone(), cfg.clone()))
+                .or(internal::update(cache.clone())),
+        )
         .boxed()
 }

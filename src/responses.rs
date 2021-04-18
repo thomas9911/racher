@@ -1,3 +1,4 @@
+use crate::Db;
 use serde::{Deserialize, Serialize};
 use serde_value::Value;
 
@@ -10,6 +11,8 @@ pub enum Response {
     DEL(DelResponse),
     KEYS(KeysResponse),
     PURGE(PurgeResponse),
+    JOIN(JoinResponse),
+    SYNC(Db),
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -35,4 +38,9 @@ pub struct KeysResponse {
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct PurgeResponse {
     pub purged: bool,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct JoinResponse {
+    pub code: String,
 }

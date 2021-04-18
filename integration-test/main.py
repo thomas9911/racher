@@ -17,7 +17,7 @@ class RacherRequest:
         if r.ok:
             return r.json()
         else:
-            raise Exception(r.text)
+            raise Exception(f"{r.text}:{r.status_code}")
 
     def setter(self, name, data):
         return self._do("set", name, json=data)
@@ -77,7 +77,7 @@ def cache(cache):
 
     return decorator
 
-if __name__ == "__main__":
+def tester():
     print("------- dict ------------------")
 
     c = Racher()
@@ -124,3 +124,13 @@ if __name__ == "__main__":
     print("fibonaci number 1200", fibo(1200))
 
     # print(c.purge())
+
+
+if __name__ == "__main__":
+    # tester()
+    c = Racher()
+    c.setter("test%2Fhorse%2Fkey", {"test": 1234})
+
+    # print(c._do("join", json={"host": "127.0.0.1:1235"}))
+    # a  = c._do("_internal/join", json={"host": "127.0.0.1:1235"})
+    # print(c._do("_internal/sync", json=a))
