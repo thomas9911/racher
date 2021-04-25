@@ -40,12 +40,15 @@ async fn inner_loop(args: &Args, config: RuntimeConfigArc) -> Result<(), Box<dyn
     let sync_to_fs = task::spawn(async { cli::sync_to_fs(config_clone, cache_clone) });
     let config_clone = config.clone();
     let server_sender = task::spawn(async { cli::server_sender(config_clone, rx1) });
+    let config_clone = config.clone();
+    let sync_neighbours = task::spawn(async { cli::sync_neighbours(config_clone) });
 
     tokio::select!(
         Ok(()) = signal::ctrl_c() => {},
         Ok(()) = http_server.await? => {},
         Ok(()) = sync_to_fs.await? => {},
         Ok(()) = server_sender.await? => {},
+        Ok(()) = sync_neighbours.await? => {},
     );
 
     Ok(())
@@ -70,10 +73,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
 
     args.set_logger();
-    println!("{:?}", args);
+    // println!("{:?}", args);
 
     let config = args.as_runtime_config();
-    println!("{:?}", config);
+    // println!("{:?}", config);
     // let config = args.as_runtime_config().to_arc();
     let config = config.to_arc();
     main_loop(&args, config).await?;

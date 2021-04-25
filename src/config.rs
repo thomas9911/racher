@@ -2,6 +2,7 @@
 use crate::arguments::{Args, SubArg};
 use rand::thread_rng;
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_512};
 use std::collections::HashSet;
 use std::net::SocketAddr;
@@ -32,7 +33,7 @@ impl JoinCommand {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct RuntimeConfig {
     pub address: SocketAddr,
     pub external_address: Url,

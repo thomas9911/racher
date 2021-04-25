@@ -22,7 +22,7 @@ pub async fn http_server(
     cache: Db,
     tx: broadcast::Sender<(String, Value)>,
 ) -> Result<(), Box<dyn Error>> {
-    let address = cfg.read().await.address;
+    let address = { cfg.read().await.address.clone() };
     // let (addr, server) = warp::serve(api).bind_with_graceful_shutdown(address, async {
     //     signal::ctrl_c().await.expect("failed to listen for event")
     // });
@@ -58,8 +58,11 @@ pub async fn server_sender(
     let mut client = crate::client::Client::new();
     loop {
         if let Ok((key, value)) = rx.recv().await {
-            let read_cfg = cfg.read().await;
-            for host in read_cfg.neighbours.clone() {
+            let neighbours = {
+                let read_cfg = cfg.read().await;
+                read_cfg.neighbours.clone()
+            };
+            for host in neighbours {
                 client.internal_update(host, &key, &value).await;
             }
         }
@@ -74,8 +77,10 @@ pub async fn fs_loop(cfg: RuntimeConfigArc, cache: Db) -> io::Result<()> {
     loop {
         interval.tick().await;
         let (mut file, path) = {
-            let read_cfg = cfg.read().await;
-            let mut file = read_cfg.backup_dir.clone();
+            let mut file = {
+                let read_cfg = cfg.read().await;
+                read_cfg.backup_dir.clone()
+            };
             fs::create_dir_all(&file).await?;
 
             file.push(format!("racher-{}", Utc::now().format("%Y%m%dT%H%M%S%6f")));
@@ -119,19 +124,50 @@ pub async fn clean_data_dir(cfg: RuntimeConfigArc) -> io::Result<()> {
     loop {
         interval.tick().await;
 
-        let read_cfg = cfg.read().await;
-        let mut filenames = fetch_data_dir_filenames(&read_cfg.backup_dir).await?;
+        let (backup_amount, backup_dir) = {
+            let read_cfg = cfg.read().await;
+
+            (read_cfg.backup_amount, read_cfg.backup_dir.clone())
+        };
+        let mut filenames = fetch_data_dir_filenames(&backup_dir).await?;
         filenames.reverse();
         debug!("started clean up old backups");
 
-        for item in filenames.into_iter().skip(read_cfg.backup_amount) {
-            let mut file = read_cfg.backup_dir.clone();
+        for item in filenames.into_iter().skip(backup_amount) {
+            let mut file = backup_dir.clone();
             file.push(item);
             // on error just continue
             fs::remove_file(file).await.ok();
         }
 
         debug!("done clean up old backups");
+    }
+}
+
+pub async fn sync_neighbours(cfg: RuntimeConfigArc) -> Result<(), Box<dyn Error>> {
+    time::interval(time::Duration::from_secs(10)).tick().await;
+
+    let mut interval = { time::interval(time::Duration::from_secs(60)) };
+    loop {
+        let (neighbours, me) = {
+            let read_cfg = cfg.read().await;
+            let mut neighbours = read_cfg.neighbours.clone();
+            let me = read_cfg.external_address.clone();
+            neighbours.remove(&me);
+            (
+                neighbours,
+                me,
+            )
+        };
+        let mut client = crate::client::Client::new();
+        let neighbours = client.ping_all(neighbours).await?;
+        {
+            let mut write_cfg = cfg.write().await;
+            write_cfg.neighbours = neighbours.clone();
+        }
+        client.join_all(me, neighbours).await?;
+
+        interval.tick().await;
     }
 }
 
@@ -180,12 +216,17 @@ pub async fn remove_backups(backup_dir: &PathBuf) -> Result<(), Box<dyn Error>> 
 
 pub async fn join_cache(join_address: Url, config: RuntimeConfigArc) -> Result<Db, Box<dyn Error>> {
     let mut client = crate::client::Client::new();
-    let read_config = config.read().await;
-    let addr = read_config.external_address.clone();
+    client.ping(join_address.clone()).await?;
+    let addr = {
+        let read_config = config.read().await;
+        read_config.external_address.clone()
+    };
     let response = client.join(addr, join_address.clone()).await?;
     let code = response.code;
+    let neighbours = response.neighbours;
     let response = client.sync(join_address.clone(), &code).await?;
     let mut write_config = config.write().await;
+    write_config.neighbours.extend(neighbours);
     write_config.neighbours.insert(join_address);
     write_config.base_code = code;
     Ok(response)

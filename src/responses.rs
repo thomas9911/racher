@@ -1,4 +1,5 @@
 use crate::Db;
+use url::Url;
 use serde::{Deserialize, Serialize};
 use serde_value::Value;
 
@@ -11,7 +12,9 @@ pub enum Response {
     DEL(DelResponse),
     KEYS(KeysResponse),
     PURGE(PurgeResponse),
+    PONG(PingResponse),
     JOIN(JoinResponse),
+    FANOUT(FanoutResponse),
     SYNC(Db),
 }
 
@@ -41,6 +44,17 @@ pub struct PurgeResponse {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct PingResponse {
+    pub pong: bool,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct JoinResponse {
     pub code: String,
+    pub neighbours: Vec<Url>,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct FanoutResponse {
+    pub fanout: String,
 }

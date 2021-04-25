@@ -98,7 +98,9 @@ pub fn internal(cache: Db, cfg: RuntimeConfigArc) -> BoxedFilter<(impl Reply,)> 
         .and(
             internal::join(cfg.clone())
                 .or(internal::sync(cache.clone(), cfg.clone()))
-                .or(internal::update(cache.clone())),
+                .or(internal::update(cache.clone()))
+                .or(internal::fanout(cfg.clone()))
+                .or(internal::config(cfg.clone())),
         )
         .boxed()
 }

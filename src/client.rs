@@ -1,9 +1,10 @@
-use crate::responses::JoinResponse;
+use crate::responses::{FanoutResponse, JoinResponse, PingResponse};
 use crate::Db;
 use futures::future;
 use reqwest::{Error, Request, Response};
 use serde_json::json;
 use serde_value::Value;
+use std::collections::HashSet;
 use std::error::Error as ErrorTrait;
 use tower::util::BoxService;
 use tower::Service;
@@ -48,6 +49,10 @@ impl Client {
         self.service.ready().await?.call(req).await
     }
 
+    pub async fn call_owned(mut self, req: Request) -> Result<Response, Error> {
+        self.service.ready().await?.call(req).await
+    }
+
     pub async fn internal_update(&mut self, mut send_to: Url, key: &str, value: &Value) -> () {
         debug!("update other host '{}' of key '{}'", send_to, key);
 
@@ -71,6 +76,45 @@ impl Client {
         }
     }
 
+    pub async fn ping(&mut self, mut address: Url) -> Result<PingResponse, Box<dyn ErrorTrait>> {
+        debug!("ping address '{}'", address);
+        address
+            .path_segments_mut()
+            .map_err(|_| String::from("invalid url"))?
+            .push("ping");
+
+        let request = self.client.post(address).build()?;
+        let response: PingResponse = self.call(request).await?.json().await?;
+        Ok(response)
+    }
+
+    pub async fn ping_all(
+        &mut self,
+        addresses: HashSet<Url>,
+    ) -> Result<HashSet<Url>, Box<dyn ErrorTrait>> {
+        let mut requests = Vec::new();
+        for address in addresses {
+            debug!("ping address '{}'", address);
+            let mut endpoint = address.clone();
+            endpoint
+                .path_segments_mut()
+                .map_err(|_| String::from("invalid url"))?
+                .push("ping");
+
+            let request = self.client.post(endpoint).build()?;
+            requests.push((address, self.clone().call_owned(request)));
+        }
+
+        let mut valid_urls = HashSet::new();
+        for (address, request) in requests {
+            if let Ok(_) = request.await {
+                valid_urls.insert(address);
+            }
+        }
+
+        Ok(valid_urls)
+    }
+
     pub async fn join(
         &mut self,
         me: Url,
@@ -91,6 +135,34 @@ impl Client {
         Ok(response)
     }
 
+    pub async fn join_all(
+        &mut self,
+        me: Url,
+        addresses: HashSet<Url>,
+    ) -> Result<(), Box<dyn ErrorTrait>> {
+        let mut requests = Vec::new();
+        for mut join_with in addresses {
+            debug!("joining host '{}' with my address '{}'", join_with, me);
+
+            join_with
+                .path_segments_mut()
+                .map_err(|_| String::from("invalid url"))?
+                .push("_internal")
+                .push("join");
+
+            let value = json!({"host": me.as_str()});
+
+            let request = self.client.post(join_with).json(&value).build()?;
+            requests.push(self.clone().call_owned(request));
+        }
+
+        for request in requests {
+            request.await.ok();
+        }
+
+        Ok(())
+    }
+
     pub async fn sync(
         &mut self,
         mut sync_with: Url,
@@ -108,6 +180,27 @@ impl Client {
 
         let request = self.client.post(sync_with).json(&value).build()?;
         let response: Db = self.call(request).await?.json().await?;
+        Ok(response)
+    }
+
+    pub async fn fanout(
+        &mut self,
+        mut join_with: Url,
+        to_be_added: Url,
+        code: &str,
+    ) -> Result<FanoutResponse, Box<dyn ErrorTrait>> {
+        debug!("fanout host '{}'", join_with);
+
+        join_with
+            .path_segments_mut()
+            .map_err(|_| String::from("invalid url"))?
+            .push("_internal")
+            .push("fanout");
+
+        let value = json!({ "code": code, "host": to_be_added });
+
+        let request = self.client.post(join_with).json(&value).build()?;
+        let response: FanoutResponse = self.call(request).await?.json().await?;
         Ok(response)
     }
 
