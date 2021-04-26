@@ -1,7 +1,7 @@
 use crate::Db;
-use url::Url;
 use serde::{Deserialize, Serialize};
 use serde_value::Value;
+use url::Url;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[non_exhaustive]

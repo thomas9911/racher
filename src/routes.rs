@@ -1,4 +1,6 @@
 use crate::config::RuntimeConfigArc;
+use crate::transport;
+use crate::transport::Message;
 use crate::Db;
 
 use serde_json::json;
@@ -6,7 +8,6 @@ use serde_value::Value;
 use std::collections::HashSet;
 use std::convert::Infallible;
 use std::iter::FromIterator;
-use tokio::sync::broadcast;
 use warp::filters::BoxedFilter;
 use warp::{Filter, Reply};
 
@@ -31,12 +32,11 @@ async fn inner_setter(
     name: String,
     simple_map: Value,
     cache: Db,
-    tx: broadcast::Sender<(String, Value)>,
+    tx: transport::Sender,
 ) -> Result<impl warp::Reply, Infallible> {
-    println!("{}", name);
     cache.insert(name.clone(), simple_map.clone());
     // ignore the error, this will only return if no-one is listening.
-    tx.send((name, simple_map)).ok();
+    tx.send(Message::Created(name, simple_map)).ok();
     Ok::<_, Infallible>(ok_reponse())
 }
 
@@ -49,16 +49,20 @@ pub fn getter(cache: Db) -> BoxedFilter<(impl Reply,)> {
         .boxed()
 }
 
-pub fn deleter(cache: Db) -> BoxedFilter<(impl Reply,)> {
+pub fn deleter(cache: Db, tx: transport::Sender) -> BoxedFilter<(impl Reply,)> {
     warp::path!("del" / String)
-        .map(move |name| match cache.remove(&name) {
-            Some(_) => delete_response(true),
-            None => delete_response(false),
+        .map(move |name| {
+            let deleted = match cache.remove(&name) {
+                Some(_) => true,
+                None => false,
+            };
+            tx.send(Message::Deleted(name)).ok();
+            delete_response(deleted)
         })
         .boxed()
 }
 
-pub fn setter(cache: Db, tx: broadcast::Sender<(String, Value)>) -> BoxedFilter<(impl Reply,)> {
+pub fn setter(cache: Db, tx: transport::Sender) -> BoxedFilter<(impl Reply,)> {
     warp::path!("set" / String)
         .and(warp::body::content_length_limit(MAX_FILE_SIZE))
         .and(warp::body::json())

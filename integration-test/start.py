@@ -58,7 +58,7 @@ import os
 
 
 def run(cmd):
-    os.environ["RACHER_LOGGER_LEVEL"] = "DEBUG"
+    os.environ["RACHER_DEVELOPMENT"] = "1"
     os.environ["RACHER_BACKUP_SKIP_LOADING"] = "1"
     os.environ["RACHER_BACKUP_AMOUNT"] = "0"
     os.environ["RACHER_BACKUP_INTERVAL"] = "120"

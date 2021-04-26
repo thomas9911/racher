@@ -1,12 +1,16 @@
 import requests
 import functools
+import random
 
 URL = "http://127.0.0.1:9226"
 
 
 class RacherRequest:
-    def __init__(self, url=URL):
-        self.url = url
+    def __init__(self, urls=URL):
+        if isinstance(urls, list):
+            self._urls = urls
+        else:
+            self._urls = [urls]
 
     def _do(self, cmd, name=None, *args, **kwargs):
         if name:
@@ -18,6 +22,11 @@ class RacherRequest:
             return r.json()
         else:
             raise Exception(f"{r.text}:{r.status_code}")
+
+    @property
+    def url(self):
+        url = random.choice(self._urls)
+        return url
 
     def setter(self, name, data):
         return self._do("set", name, json=data)
@@ -80,7 +89,7 @@ def cache(cache):
 def tester():
     print("------- dict ------------------")
 
-    c = Racher()
+    c = Racher([f"http://127.0.0.1:{x}" for x in range(9226, 9231)])
     c["potato"] = {"test": 1}
     print(c["potato"])
     del c["potato"]
@@ -127,9 +136,9 @@ def tester():
 
 
 if __name__ == "__main__":
-    # tester()
-    c = Racher()
-    c.setter("test%2Fhorse%2Fkey", {"test": 1234})
+    tester()
+    # c = Racher()
+    # c.setter("test%2Fhorse%2Fkey", {"test": 1234})
 
     # print(c._do("join", json={"host": "127.0.0.1:1235"}))
     # a  = c._do("_internal/join", json={"host": "127.0.0.1:1235"})

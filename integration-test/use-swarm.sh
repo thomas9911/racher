@@ -1,43 +1,52 @@
-curl -X POST 127.0.0.1:9227/get/one
+function get() {
+    curl -X POST "127.0.0.1:$1/get/one"
+    echo
+}
 
-echo
+function update() {
+    curl -X POST -H "Content-Type: application/json" -d "$2" "127.0.0.1:$1/set/one"
+    echo
+}
 
-curl -X POST -H "Content-Type: application/json" -d '{"key1":"value1", "key2":"value2"}' 127.0.0.1:9226/set/one
+function delete() {
+    curl -X POST "127.0.0.1:$1/del/one"
+    echo
+}
 
-echo
+for i in $(seq 1 12); do
 
-curl -X POST 127.0.0.1:9227/get/one
+    for port in $(seq 9226 9230); do
+        get $port
+    done
 
-echo
+    echo
 
-curl -X POST 127.0.0.1:9228/get/one
+    update 9226 '{"key1":"value1", "key2":"value2"}'
 
-echo
+    for port in $(seq 9226 9230); do
+        get $port
+    done
 
-curl -X POST -H "Content-Type: application/json" -d '{"other":"some"}' 127.0.0.1:9229/set/one
+    echo
 
-echo
+    update 9229 '{"other":"some"}'
 
-sleep 1
+    for port in $(seq 9226 9230); do
+        get $port
+    done
 
-echo
+    echo
 
-curl -X POST 127.0.0.1:9226/get/one
+    delete 9230
 
-echo
+    for port in $(seq 9226 9230); do
+        get $port
+    done
 
-curl -X POST 127.0.0.1:9227/get/one
+    echo
 
-echo
+    echo "=====> next"
 
-curl -X POST 127.0.0.1:9228/get/one
+    echo
 
-echo
-
-curl -X POST 127.0.0.1:9229/get/one
-
-echo
-
-curl -X POST 127.0.0.1:9230/get/one
-
-echo
+done

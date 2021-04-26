@@ -6,13 +6,13 @@ pub mod client;
 pub mod config;
 pub mod responses;
 pub mod routes;
+pub mod transport;
 use config::RuntimeConfigArc;
 
 use std::sync::Arc;
 
 use dashmap::DashMap;
 use serde_value::Value;
-use tokio::sync::broadcast;
 use warp::filters::BoxedFilter;
 use warp::{Filter, Reply};
 
@@ -23,16 +23,16 @@ pub const MAX_FILE_SIZE: u64 = 1024 * 1024 * 32;
 pub fn create_api(
     arc_cache: Db,
     cfg: RuntimeConfigArc,
-    tx: broadcast::Sender<(String, Value)>,
+    tx: transport::Sender,
 ) -> BoxedFilter<(impl Reply,)> {
     warp::post()
         .and(
-            routes::setter(arc_cache.clone(), tx)
+            routes::setter(arc_cache.clone(), tx.clone())
                 .or(routes::getter(arc_cache.clone()))
                 .or(routes::keys(arc_cache.clone()))
                 .or(routes::purge(arc_cache.clone()))
                 .or(routes::ping())
-                .or(routes::deleter(arc_cache.clone()))
+                .or(routes::deleter(arc_cache.clone(), tx))
                 .or(routes::internal(arc_cache.clone(), cfg.clone())),
         )
         .boxed()
@@ -43,7 +43,7 @@ mod test {
     use super::*;
 
     fn setup(arc_cache: Db) -> BoxedFilter<(impl Reply,)> {
-        let (tx, _) = broadcast::channel(16);
+        let (tx, _) = transport::channel(16);
 
         let config = config::RuntimeConfig::default().to_arc();
         create_api(arc_cache, config, tx)

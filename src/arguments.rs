@@ -6,6 +6,7 @@ use std::str::FromStr;
 
 use structopt::StructOpt;
 use tracing_subscriber::filter::LevelFilter;
+use tracing_subscriber::EnvFilter;
 use url::Url;
 
 #[derive(Debug, Clone)]
@@ -79,6 +80,9 @@ pub struct LoggerArgs {
     /// turn on all messages
     #[structopt(long)]
     pub trace: bool,
+    /// logs the libracher in debug mode
+    #[structopt(long, env = "RACHER_DEVELOPMENT")]
+    pub development: bool,
     /// set the log level
     #[structopt(long, env = "RACHER_LOGGER_LEVEL", possible_values = &["ERROR", "WARN", "INFO", "DEBUG", "TRACE", "OFF"])]
     pub logger_level: Option<LevelFilter>,
@@ -194,7 +198,15 @@ impl Args {
             args.logger_level.unwrap_or(LevelFilter::INFO)
         };
 
-        let builder = tracing_subscriber::fmt().with_max_level(level);
+        let filter = if args.development {
+            EnvFilter::from_default_env().add_directive("libracher=debug".parse().unwrap())
+        } else {
+            EnvFilter::from_default_env()
+        };
+
+        let builder = tracing_subscriber::fmt()
+            .with_max_level(level)
+            .with_env_filter(filter);
         match args.output.as_ref() {
             "json" => builder.json().init(),
             "compact" => builder.compact().init(),

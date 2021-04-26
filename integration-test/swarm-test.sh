@@ -3,6 +3,21 @@ export RACHER_BACKUP_AMOUNT=0
 export RACHER_BACKUP_INTERVAL=120
 # export RACHER_LOGGER_LEVEL=DEBUG
 
+function get() {
+    curl -X POST "127.0.0.1:$1/get/one"
+    echo
+}
+
+function update() {
+    curl -X POST -H "Content-Type: application/json" -d "$2" "127.0.0.1:$1/set/one"
+    echo
+}
+
+function delete() {
+    curl -X POST "127.0.0.1:$1/del/one"
+    echo
+}
+
 cargo build
 
 cargo run -- -a 127.0.0.1:9226 &
@@ -21,49 +36,43 @@ process5=$!
 
 sleep 5
 
-curl -X POST 127.0.0.1:9227/get/one
+for i in $(seq 1 12); do
 
-echo
+    for port in $(seq 9226 9230); do
+        get $port
+    done
 
-curl -X POST -H "Content-Type: application/json" -d '{"key1":"value1", "key2":"value2"}' 127.0.0.1:9226/set/one
+    echo
 
-echo
+    update 9226 '{"key1":"value1", "key2":"value2"}'
 
-curl -X POST 127.0.0.1:9227/get/one
+    for port in $(seq 9226 9230); do
+        get $port
+    done
 
-echo
+    echo
 
-curl -X POST 127.0.0.1:9228/get/one
+    update 9229 '{"other":"some"}'
 
-echo
+    for port in $(seq 9226 9230); do
+        get $port
+    done
 
-curl -X POST -H "Content-Type: application/json" -d '{"other":"some"}' 127.0.0.1:9228/set/one
+    echo
 
-echo
+    delete 9230
 
-sleep 1
+    for port in $(seq 9226 9230); do
+        get $port
+    done
 
-echo
+    echo
 
-curl -X POST 127.0.0.1:9226/get/one
+    echo "=====> next"
 
-echo
+    echo
 
-curl -X POST 127.0.0.1:9227/get/one
-
-echo
-
-curl -X POST 127.0.0.1:9228/get/one
-
-echo
-
-curl -X POST 127.0.0.1:9229/get/one
-
-echo
-
-curl -X POST 127.0.0.1:9230/get/one
-
-echo
+done
 
 kill $process1
 kill $process2

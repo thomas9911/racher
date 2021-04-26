@@ -1,4 +1,6 @@
 use crate::config::RuntimeConfigArc;
+use crate::transport;
+use crate::transport::Message;
 use crate::Db;
 
 use std::convert::Infallible;
@@ -9,7 +11,6 @@ use chrono::Utc;
 use dashmap::DashMap;
 use serde_value::Value;
 use tokio::io::AsyncWriteExt;
-use tokio::sync::broadcast;
 use tokio::{fs, io, signal, time};
 use tracing::{debug, info};
 use url::Url;
@@ -20,7 +21,7 @@ use warp::hyper::{Body, Request};
 pub async fn http_server(
     cfg: RuntimeConfigArc,
     cache: Db,
-    tx: broadcast::Sender<(String, Value)>,
+    tx: transport::Sender,
 ) -> Result<(), Box<dyn Error>> {
     let address = { cfg.read().await.address.clone() };
     // let (addr, server) = warp::serve(api).bind_with_graceful_shutdown(address, async {
@@ -53,11 +54,15 @@ pub async fn http_server(
 
 pub async fn server_sender(
     cfg: RuntimeConfigArc,
-    mut rx: broadcast::Receiver<(std::string::String, serde_value::Value)>,
+    mut rx: transport::Receiver,
 ) -> Result<(), std::convert::Infallible> {
     let mut client = crate::client::Client::new();
     loop {
-        if let Ok((key, value)) = rx.recv().await {
+        if let Ok(message) = rx.recv().await {
+            let (key, value) = match message {
+                Message::Created(key, value) => (key, value),
+                Message::Deleted(key) => (key, Value::Unit),
+            };
             let neighbours = {
                 let read_cfg = cfg.read().await;
                 read_cfg.neighbours.clone()
@@ -154,10 +159,7 @@ pub async fn sync_neighbours(cfg: RuntimeConfigArc) -> Result<(), Box<dyn Error>
             let mut neighbours = read_cfg.neighbours.clone();
             let me = read_cfg.external_address.clone();
             neighbours.remove(&me);
-            (
-                neighbours,
-                me,
-            )
+            (neighbours, me)
         };
         let mut client = crate::client::Client::new();
         let neighbours = client.ping_all(neighbours).await?;

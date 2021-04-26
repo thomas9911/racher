@@ -4,12 +4,12 @@ use libracher;
 use libracher::arguments::{Args, SubArg};
 use libracher::cli;
 use libracher::config::RuntimeConfigArc;
+use libracher::transport;
 
 use std::error::Error;
 use std::sync::Arc;
 
 use structopt::StructOpt;
-use tokio::sync::broadcast;
 use tokio::{signal, task};
 use tracing::{debug, error};
 
@@ -30,7 +30,7 @@ async fn inner_loop(args: &Args, config: RuntimeConfigArc) -> Result<(), Box<dyn
         }
     };
 
-    let (tx, rx1) = broadcast::channel(16);
+    let (tx, rx1) = transport::channel(16);
 
     let config_clone = config.clone();
     let cache_clone = arc_cache.clone();

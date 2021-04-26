@@ -76,10 +76,13 @@ async fn inner_join(
         ));
     }
 
-    let (code, neighbours) = { 
+    let (code, neighbours) = {
         let mut guard = cfg.write().await;
         guard.neighbours.insert(req.host);
-        (guard.base_code.clone(), Vec::from_iter(guard.neighbours.clone().into_iter()))
+        (
+            guard.base_code.clone(),
+            Vec::from_iter(guard.neighbours.clone().into_iter()),
+        )
     };
     Ok(reply::with_status(
         reply::json(&json!({ "code": code, "neighbours": neighbours })),
@@ -141,7 +144,14 @@ async fn inner_update(
     simple_map: Value,
     cache: Db,
 ) -> Result<impl warp::Reply, Infallible> {
-    cache.insert(name, simple_map);
+    match &simple_map {
+        Value::Unit => {
+            cache.remove(&name);
+        }
+        _ => {
+            cache.insert(name, simple_map);
+        }
+    };
     Ok::<_, Infallible>(super::ok_reponse())
 }
 
