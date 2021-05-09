@@ -1,9 +1,9 @@
 import React from "react";
 import { Switch, Route } from "react-router-dom";
 import { Box } from "grommet";
-import { Item } from "./Get";
+import { Item } from "./Item";
 import { Keys } from "./Keys";
-import { Add } from "./Add";
+import { JsonForm } from "./JsonForm";
 
 export const Main = () => {
   return (
@@ -17,7 +17,7 @@ export const Main = () => {
           <Item />
         </Route>
         <Route path="/add">
-          <Add />
+          <JsonForm />
         </Route>
         <Route path="/">
           <Keys />

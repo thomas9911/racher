@@ -19,6 +19,10 @@ use crate::MAX_FILE_SIZE;
 #[cfg(feature = "dashboard")]
 static DASHBOARD: &'static str = include_str!("../web/dist/index.html");
 
+#[cfg(feature = "dashboard")]
+static FAVICON: &'static [u8] = include_bytes!("../web/favicon.ico");
+
+
 pub(crate) fn ok_reponse() -> warp::reply::Json {
     warp::reply::json(&json!({"status": "ok"}))
 }
@@ -118,5 +122,11 @@ pub fn web() -> BoxedFilter<(impl Reply,)> {
         .map(|| {
             warp::reply::html(DASHBOARD)
         })
+        .or(
+            warp::path!("favicon.ico").map(|| {
+                warp::http::Response::builder()
+                    .body(FAVICON)
+            })
+        )
         .boxed()
 }

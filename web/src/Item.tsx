@@ -1,11 +1,13 @@
 import axios from "axios";
-import React, { useEffect } from "react";
+import { Spinner } from "grommet";
+import React from "react";
 import { useParams } from "react-router-dom";
 import useSWR from "swr";
 
+import { JsonForm } from "./JsonForm";
 import { URL } from "./config";
 
-const fetchGet = (key: string) => (): Promise<any> => {
+const fetchItem = (key: string) => (): Promise<any> => {
   return axios({
     baseURL: URL,
     method: "post",
@@ -15,15 +17,16 @@ const fetchGet = (key: string) => (): Promise<any> => {
 
 export const Item = () => {
   let { key } = useParams();
-  const { data, error } = useSWR(`/item/${key}`, fetchGet(key));
+  const { data, error } = useSWR(`/item/${key}`, fetchItem(key));
 
   if (data === undefined) {
-    return <div>LOADINGG.....</div>;
+    return <Spinner />;
   }
 
   if (error) {
     return <div>{error.message}</div>;
   }
 
-  return <div>{JSON.stringify(data, null, 2)}</div>;
+  // return <div>{JSON.stringify(data, null, 2)}</div>;
+  return <JsonForm itemKey={key} data={JSON.stringify(data, null, 2)} />;
 };

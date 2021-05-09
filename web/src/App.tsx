@@ -5,21 +5,7 @@ import { Grommet, Nav } from "grommet";
 import { Grid, Add } from "grommet-icons/icons";
 import { AnchorLink } from "./AnchorLink";
 import { Main } from "./Main";
-
-const customTheme = {
-  global: {
-    font: {
-      family: "monospace",
-      size: "14px",
-      height: "20px",
-    },
-    colors: {
-      brand: "#27c2c2",
-      background: "#121212",
-      "accent-1": "#d9d9d9",
-    },
-  },
-};
+import { customTheme } from "./theme";
 
 const App = () => {
   return (

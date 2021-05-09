@@ -1,7 +1,7 @@
 import axios from "axios";
 import React, { useEffect } from "react";
 import useSWR from "swr";
-import { List, TextInput } from "grommet";
+import { List, TextInput, Spinner } from "grommet";
 import { URL } from "./config";
 import { AnchorLink } from "./AnchorLink";
 
@@ -38,7 +38,7 @@ export const Keys = () => {
   }, [data, filterValue]);
 
   if (data === undefined) {
-    return <div>LOADINGG.....</div>;
+    return <Spinner />;
   }
 
   if (error) {
