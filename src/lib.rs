@@ -6,10 +6,11 @@ pub mod client;
 pub mod config;
 pub mod responses;
 pub mod routes;
+pub mod sync;
 pub mod transport;
 use config::RuntimeConfigArc;
 
-use std::sync::Arc;
+use sync::Arc;
 
 use dashmap::DashMap;
 use serde_value::Value;
@@ -25,7 +26,9 @@ pub fn create_api(
     cfg: RuntimeConfigArc,
     tx: transport::Sender,
 ) -> BoxedFilter<(impl Reply,)> {
-    warp::post()
+    let cors = warp::cors().allow_any_origin().allow_methods(&[warp::http::Method::POST]).allow_header("content-type");
+
+    let api = warp::post()
         .and(
             routes::setter(arc_cache.clone(), tx.clone())
                 .or(routes::getter(arc_cache.clone()))
@@ -34,8 +37,20 @@ pub fn create_api(
                 .or(routes::ping())
                 .or(routes::deleter(arc_cache.clone(), tx))
                 .or(routes::internal(arc_cache.clone(), cfg.clone())),
-        )
-        .boxed()
+        ).with(cors);
+
+    // api.or(warp::options().map(warp::reply).with(cors))
+    // let cors_stuff = warp::options().map(warp::reply).with(cors);
+    // warp::any().and(api).or(cors_stuff)
+    //     .boxed()
+
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "dashboard")] {
+            api.or(warp::get().and(routes::web())).boxed()
+        } else {
+            api.boxed()
+        }
+    }
 }
 
 #[cfg(test)]

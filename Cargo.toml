@@ -32,3 +32,8 @@ chrono = "0.4"
 rand = "0.8"
 sha3 = "0.9"
 base64 = "0.13"
+cfg-if = "1.0"
+
+[features]
+default = ["dashboard"]
+dashboard = []

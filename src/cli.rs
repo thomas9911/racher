@@ -6,17 +6,17 @@ use crate::Db;
 use std::convert::Infallible;
 use std::error::Error;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use chrono::Utc;
 use dashmap::DashMap;
 use serde_value::Value;
 use tokio::io::AsyncWriteExt;
 use tokio::{fs, io, signal, time};
+use tower::ServiceBuilder;
 use tracing::{debug, info};
 use url::Url;
 use warp::hyper::server::Server;
-use warp::hyper::service::Service;
-use warp::hyper::{Body, Request};
 
 pub async fn http_server(
     cfg: RuntimeConfigArc,
@@ -30,18 +30,33 @@ pub async fn http_server(
     let api = crate::create_api(cache.clone(), cfg.clone(), tx);
 
     let warp_svc = warp::service(api);
-    let make_svc = warp::hyper::service::make_service_fn(move |_| {
-        let warp_svc = warp_svc.clone();
-        async move {
-            let svc = warp::hyper::service::service_fn(move |req: Request<Body>| {
-                let mut warp_svc = warp_svc.clone();
-                warp_svc.call(req)
-            });
-            Ok::<_, Infallible>(svc)
-        }
-    });
+    // let make_svc = warp::hyper::service::make_service_fn(move |_| {
+    //     let warp_svc = warp_svc.clone();
+    //     async move {
+    //         let svc = warp::hyper::service::service_fn(move |req: Request<Body>| {
+    //             let mut warp_svc = warp_svc.clone();
+    //             warp_svc.call(req)
+    //         });
+    //         Ok::<_, Infallible>(svc)
+    //     }
+    // });
 
-    let server = Server::bind(&address).serve(make_svc);
+    let f = move |_: &warp::hyper::server::conn::AddrStream| {
+        let svc = warp_svc.clone();
+        async move { Ok::<_, Infallible>(svc) }
+    };
+
+    let x = ServiceBuilder::new()
+        // .buffer(100)
+        // .layer(tower::buffer::BufferLayer::new(100))
+        // .concurrency_limit(10)
+        .layer(tower::limit::ConcurrencyLimitLayer::new(10000))
+        .layer(tower::timeout::TimeoutLayer::new(Duration::from_millis(
+            15000,
+        )))
+        .service_fn(f);
+
+    let server = Server::bind(&address).serve(x);
     info!("address: http://{}", server.local_addr());
     let gracefull = server.with_graceful_shutdown(async {
         signal::ctrl_c().await.expect("failed to listen for event")

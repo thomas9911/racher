@@ -4,10 +4,11 @@ use libracher;
 use libracher::arguments::{Args, SubArg};
 use libracher::cli;
 use libracher::config::RuntimeConfigArc;
+use libracher::sync;
 use libracher::transport;
 
 use std::error::Error;
-use std::sync::Arc;
+use sync::Arc;
 
 use structopt::StructOpt;
 use tokio::{signal, task};

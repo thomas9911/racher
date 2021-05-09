@@ -16,6 +16,9 @@ pub mod utils;
 
 use crate::MAX_FILE_SIZE;
 
+#[cfg(feature = "dashboard")]
+static DASHBOARD: &'static str = include_str!("../web/dist/index.html");
+
 pub(crate) fn ok_reponse() -> warp::reply::Json {
     warp::reply::json(&json!({"status": "ok"}))
 }
@@ -106,5 +109,14 @@ pub fn internal(cache: Db, cfg: RuntimeConfigArc) -> BoxedFilter<(impl Reply,)> 
                 .or(internal::fanout(cfg.clone()))
                 .or(internal::config(cfg.clone())),
         )
+        .boxed()
+}
+
+#[cfg(feature = "dashboard")]
+pub fn web() -> BoxedFilter<(impl Reply,)> {
+    warp::path!("dashboard" / ..)
+        .map(|| {
+            warp::reply::html(DASHBOARD)
+        })
         .boxed()
 }

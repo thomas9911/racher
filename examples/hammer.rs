@@ -2,9 +2,10 @@ use libracher::responses::Response;
 
 use futures::prelude::*;
 use futures::stream::FuturesUnordered;
+use rand::random;
 use serde_json::json;
 
-const URL: &'static str = "http://127.0.0.1:9226";
+const URL: &'static str = "http://127.0.0.1:8085";
 
 async fn get(client: &reqwest::Client) -> reqwest::Result<Response> {
     client
@@ -18,7 +19,7 @@ async fn get(client: &reqwest::Client) -> reqwest::Result<Response> {
 async fn set(client: &reqwest::Client) -> reqwest::Result<Response> {
     client
         .post(format!("{}/set/testing", URL))
-        .json(&json!({"override": 1}))
+        .json(&json!({"override": random::<usize>()}))
         .send()
         .await?
         .json()
@@ -32,15 +33,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let reqs2 = FuturesUnordered::new();
     let reqs3 = FuturesUnordered::new();
 
-    for _ in 0..1000 {
+    for _ in 0..10000 {
         reqs.push(get(&client));
     }
 
-    for _ in 0..1000 {
+    for _ in 0..10000 {
         reqs2.push(set(&client));
     }
 
-    for _ in 0..1000 {
+    for _ in 0..10000 {
         reqs3.push(get(&client));
     }
 

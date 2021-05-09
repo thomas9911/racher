@@ -51,3 +51,11 @@ curl -X POST -H "Content-Type: application/json" -d '{"key1":"value1", "key2":"v
 ```sh
 curl -X POST 127.0.0.1:9226/get/one
 ```
+
+## Dashboard
+
+by default exposes a dashboard on `/dashhboard` this can be disabled by compiling the binary with the `--no-default-features` flag, this also decreases the binary size:
+
+```sh
+cargo build --release --no-default-features
+```

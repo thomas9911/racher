@@ -1020,6 +1020,7 @@ name = "racher"
 version = "0.1.0"
 dependencies = [
  "base64 0.13.0",
+ "cfg-if 1.0.0",
  "chrono",
  "dashmap",
  "futures",

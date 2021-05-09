@@ -1,5 +1,6 @@
 // use rand::distributions::{Alphanumeric, Distribution};
 use crate::arguments::{Args, SubArg};
+use crate::sync::{Arc, RwLock};
 use rand::thread_rng;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -7,8 +8,6 @@ use sha3::{Digest, Sha3_512};
 use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::sync::Arc;
-use tokio::sync::RwLock;
 use url::Url;
 
 pub type RuntimeConfigArc = Arc<RwLock<RuntimeConfig>>;
